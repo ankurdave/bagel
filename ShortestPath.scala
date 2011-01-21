@@ -4,17 +4,17 @@ import spark.SparkContext._
 object ShortestPath {
   def main(args: Array[String]) {
     if (args.length < 3) {
-      System.err.println("Usage: ShortestPath <graphFile> <startVertex> <host>")
+      System.err.println("Usage: ShortestPath <graphFile> <startVertex> " +
+                         "<host>")
       System.exit(-1)
     }
 
     val graphFile = args(0)
     val startVertex = args(1)
     val host = args(2)
-
     val sc = new SparkContext(host, "ShortestPath")
 
-    // Parse the graph data from a file into an RDD
+    // Parse the graph data from a file into two RDDs, vertices and messages
     val lines =
       (sc.textFile(graphFile)
        .filter(!_.matches("^\\s*#.*"))
@@ -40,26 +40,32 @@ object ShortestPath {
            Message(vertexId, messageValue.toInt)
        })
     
-    System.err.println("Read "+vertices.count()+" vertices and "+messages.count()+" messages.")
+    System.err.println("Read "+vertices.count()+" vertices and "+
+                       messages.count()+" messages.")
 
     // Do the computation
-    val result = Pregel.run(vertices, messages) { (self: Vertex[Option[Int],Int], messages: Seq[Message[Int]]) =>
-      // TODO: Need newValue to be Option[Int], otherwise it just
-      // takes on Some(Int.MaxValue) after the first iteration
-      val newValue = (self.value.getOrElse(Int.MaxValue) :: messages.map(_.value).toList).min
+    val result = Pregel.run(vertices, messages) {
+      (self: Vertex[Option[Int],Int], messages: Iterable[Message[Int]]) =>
+        val newValue = (self.value, messages) match {
+          case (None, ms) if ms.size == 0 => None
+          case (v, ms) =>
+            Some((List(v.getOrElse(Int.MaxValue)) ++ ms.map(_.value)).min)
+        }
 
-      val outbox =
-        if (newValue != self.value.getOrElse(Int.MaxValue))
-          self.outEdges.map(edge => edge.messageAlong(newValue + edge.value)).toList
-        else
-          List()
+        val outbox =
+          if (newValue != self.value)
+            self.outEdges.map(edge =>
+              edge.messageAlong(newValue.get + edge.value))
+          else
+            List()
 
-      (Vertex(self.id, Some(newValue), self.outEdges, Inactive), outbox)
+        (Vertex(self.id, newValue, self.outEdges, Inactive), outbox)
     }
 
     // Print the result
     System.err.println("Shortest path from "+startVertex+" to all vertices:")
-    val shortest = result.map(vertex => "%s\t%s\n".format(vertex.id, vertex.value.getOrElse("inf"))).mkString
+    val shortest = result.map(vertex =>
+      "%s\t%s\n".format(vertex.id, vertex.value.getOrElse("inf"))).mkString
     println(shortest)
   }
 }

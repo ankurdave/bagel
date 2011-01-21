@@ -8,7 +8,7 @@ object Pregel {
   implicit def RDDExtensions[T](self: RDD[T]) = new RDDExtensions(self)
   implicit def PairRDDExtensions[K,V](self: RDD[(K, V)]) = new PairRDDExtensions(self)
 
-  def run[V,M,E](vertices: RDD[Vertex[V,E]], messages: RDD[Message[M]])(compute: (Vertex[V,E], Seq[Message[M]]) => (Vertex[V,E], Seq[Message[M]])): Seq[Vertex[V,E]] = {
+  def run[V,M,E](vertices: RDD[Vertex[V,E]], messages: RDD[Message[M]])(compute: (Vertex[V,E], Iterable[Message[M]]) => (Vertex[V,E], Iterable[Message[M]])): Iterable[Vertex[V,E]] = {
     println("Vertices:")
     println(vertices.map(_.toString).collect.mkString("\n"))
     println("Messages:")
