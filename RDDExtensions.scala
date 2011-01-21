@@ -1,6 +1,8 @@
 import spark._
 import spark.SparkContext._
 
+import scala.collection.mutable.ArrayBuffer
+
 class RDDExtensions[T](self: RDD[T]) {
   def exists(p: T => Boolean): Boolean = {
     self.map(p).reduce(_ || _)

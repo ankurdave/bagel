@@ -1,10 +1,13 @@
 import spark._
 import spark.SparkContext._
 
-import scala.collection.mutable.ArrayBuffer
-
 object Pregel {
-  def run[V,M,E](vertices: RDD[Vertex[V,E]], messages: RDD[Message[M]])(compute: (Vertex[V,E], Iterable[Message[M]]) => (Vertex[V,E], Iterable[Message[M]])): Iterable[Vertex[V,E]] = {
+  implicit def RDDExtensions[T](self: RDD[T]) = new RDDExtensions(self)
+  implicit def PairRDDExtensions[K,V](self: RDD[(K, V)]) = new PairRDDExtensions(self)
+
+  def run[V,M,E](vertices: RDD[Vertex[V,E]], messages: RDD[Message[M]])(
+    compute: (Vertex[V,E], Iterable[Message[M]]) =>
+      (Vertex[V,E], Iterable[Message[M]])): Iterable[Vertex[V,E]] = {
     println("Vertices:\n" + 
             vertices.map("\t" + _.toString).collect.mkString("\n") + "\n" +
             "Messages:\n" +
@@ -40,9 +43,6 @@ object Pregel {
     else
       run(newVertices, newM)(compute)
   }
-
-  implicit def RDDExtensions[T](self: RDD[T]) = new RDDExtensions(self)
-  implicit def PairRDDExtensions[K,V](self: RDD[(K, V)]) = new PairRDDExtensions(self)
 }
 
 case class Message[A](targetId: String, value: A)
