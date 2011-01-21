@@ -15,33 +15,37 @@ object ShortestPath {
     val sc = new SparkContext(host, "ShortestPath")
 
     // Parse the graph data from a file into an RDD
-    val graph: RDD[GraphObject] =
+    val lines =
       (sc.textFile(graphFile)
        .filter(!_.matches("^\\s*#.*"))
-       .map(line => line.split("\t"))
-       .groupBy(line => line(0))
-       .flatMap {
+       .map(line => line.split("\t")))
+
+    val vertices =
+      (lines.groupBy(line => line(0))
+       .map {
          case (vertexId, lines) => {
            val outEdges = lines.collect {
              case Array(_, targetId, edgeValue) =>
                Edge(targetId, edgeValue.toInt)
            }
            
-           val messages =
-             lines.collect {
-               case Array(_, messageValue) =>
-                 Message(vertexId, messageValue.toInt)
-             }.toList
-           
-           Vertex(vertexId, None, outEdges, Active) :: messages
+           Vertex[Option[Int],Int](vertexId, None, outEdges, Active)
          }
        })
 
-    System.err.println("Read " + graph.count() + " vertices.")
+    val messages =
+      (lines.filter(_.length == 2)
+       .map {
+         case Array(vertexId, messageValue) =>
+           Message(vertexId, messageValue.toInt)
+       })
+    
+    System.err.println("Read "+vertices.count()+" vertices and "+messages.count()+" messages.")
 
     // Do the computation
-    val result = Pregel.run(graph) { (self: Vertex[Option[Int],Int], messages: Iterable[Message[Int]]) =>
-      // TODO: Need newValue to be Option[Int], otherwise it just takes on Some(Int.MaxValue) after the first iteration
+    val result = Pregel.run(vertices, messages) { (self: Vertex[Option[Int],Int], messages: Seq[Message[Int]]) =>
+      // TODO: Need newValue to be Option[Int], otherwise it just
+      // takes on Some(Int.MaxValue) after the first iteration
       val newValue = (self.value.getOrElse(Int.MaxValue) :: messages.map(_.value).toList).min
 
       val outbox =
@@ -50,7 +54,7 @@ object ShortestPath {
         else
           List()
 
-      Vertex(self.id, Some(newValue), self.outEdges, Inactive) :: outbox
+      (Vertex(self.id, Some(newValue), self.outEdges, Inactive), outbox)
     }
 
     // Print the result
