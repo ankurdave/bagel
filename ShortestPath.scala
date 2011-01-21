@@ -3,7 +3,7 @@ import spark.SparkContext._
 
 object ShortestPath {
   def main(args: Array[String]) {
-    if (args.length < 4) {
+    if (args.length < 3) {
       System.err.println("Usage: ShortestPath <graphFile> <startVertex> <host>")
       System.exit(-1)
     }
@@ -15,37 +15,47 @@ object ShortestPath {
     val sc = new SparkContext(host, "ShortestPath")
 
     // Parse the graph data from a file into an RDD
-    val graph: RDD[Either[Vertex[Option[Int], Int], Message[Int]]] = 
-      (sc
-       .textFile(graphFile)
-       .filter(line => !line.matches("^\\s*#.*"))
+    val graph: RDD[GraphObject] =
+      (sc.textFile(graphFile)
+       .filter(!_.matches("^\\s*#.*"))
        .map(line => line.split("\t"))
        .groupBy(line => line(0))
-       .map {
+       .flatMap {
          case (vertexId, lines) => {
-           val outEdges = lines.map(
-             line => {
-               Edge(line(1), line(2).toInt) })
-           Left(Vertex(vertexId, None, outEdges, Active)) }})
+           val outEdges = lines.collect {
+             case Array(_, targetId, edgeValue) =>
+               Edge(targetId, edgeValue.toInt)
+           }
+           
+           val messages =
+             lines.collect {
+               case Array(_, messageValue) =>
+                 Message(vertexId, messageValue.toInt)
+             }.toList
+           
+           Vertex(vertexId, None, outEdges, Active) :: messages
+         }
+       })
+
     System.err.println("Read " + graph.count() + " vertices.")
 
     // Do the computation
-    def compute(self: Vertex[Option[Int], Int], messages: Iterable[Message[Int]]): Iterable[Either[Vertex[Option[Int], Int], Message[Int]]] = {
+    val result = Pregel.run(graph) { (self: Vertex[Option[Int],Int], messages: Iterable[Message[Int]]) =>
+      // TODO: Need newValue to be Option[Int], otherwise it just takes on Some(Int.MaxValue) after the first iteration
       val newValue = (self.value.getOrElse(Int.MaxValue) :: messages.map(_.value).toList).min
-      
+
       val outbox =
-        if (newValue != self.value)
-          self.outEdges.map(edge => Right(edge.messageAlong(newValue + edge.value))).toList
+        if (newValue != self.value.getOrElse(Int.MaxValue))
+          self.outEdges.map(edge => edge.messageAlong(newValue + edge.value)).toList
         else
           List()
-      
-      Left[Vertex[Option[Int],Int],Message[Int]](Vertex(self.id, Some(newValue), self.outEdges, Inactive)) :: outbox
+
+      Vertex(self.id, Some(newValue), self.outEdges, Inactive) :: outbox
     }
 
-    val result = Pregel.run(graph ++ Right(Message(startVertex, 0)), compute)
-    val shortest = result.map(vertex => "%s\t%s\n".format(vertex.id, vertex.value.getOrElse("inf"))).mkString
-
+    // Print the result
     System.err.println("Shortest path from "+startVertex+" to all vertices:")
+    val shortest = result.map(vertex => "%s\t%s\n".format(vertex.id, vertex.value.getOrElse("inf"))).mkString
     println(shortest)
   }
 }

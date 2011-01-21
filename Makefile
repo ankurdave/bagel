@@ -4,9 +4,9 @@ SCALA_SOURCES = *.scala
 CLASSPATH = build/spark.jar:build/spark-dep.jar
 
 ifeq ($(USE_FSC),1)
-  COMPILER_NAME = fsc
+  COMPILER_NAME = fsc -unchecked
 else
-  COMPILER_NAME = scalac
+  COMPILER_NAME = scalac -unchecked
 endif
 
 ifeq ($(SCALA_HOME),)
