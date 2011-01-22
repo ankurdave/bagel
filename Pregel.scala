@@ -7,7 +7,7 @@ object Pregel {
 
   def run[V,M,E](vertices: RDD[Vertex[V,E]], messages: RDD[Message[M]])(
     compute: (Vertex[V,E], Iterable[Message[M]]) =>
-      (Vertex[V,E], Iterable[Message[M]])): Iterable[Vertex[V,E]] = {
+      (Vertex[V,E], Iterable[Message[M]])): RDD[Vertex[V,E]] = {
     println("Vertices:\n" + 
             vertices.map("\t" + _.toString).collect.mkString("\n") + "\n" +
             "Messages:\n" +
@@ -33,15 +33,15 @@ object Pregel {
             List(compute(vertex, ms))
         }
       }
-    }
+    }.cache
 
-    val (newVertices, newMessages) = (processed.map(_._1), processed.map(_._2))
-    val newM = newMessages.flatMap(identity)
+    val newVertices = processed.map(_._1)
+    val newMessages = processed.map(_._2).flatMap(identity)
 
-    if (newM.count == 0 && newVertices.forall(_.state == Inactive))
-      newVertices.collect
+    if (newMessages.count == 0 && newVertices.forall(_.state == Inactive))
+      newVertices
     else
-      run(newVertices, newM)(compute)
+      run(newVertices, newMessages)(compute)
   }
 }
 

@@ -65,7 +65,8 @@ object ShortestPath {
     // Print the result
     System.err.println("Shortest path from "+startVertex+" to all vertices:")
     val shortest = result.map(vertex =>
-      "%s\t%s\n".format(vertex.id, vertex.value.getOrElse("inf"))).mkString
+      "%s\t%s\n".format(vertex.id,
+                        vertex.value.getOrElse("inf"))).collect.mkString
     println(shortest)
   }
 }
