@@ -45,7 +45,7 @@ object ShortestPath {
 
     // Do the computation
     val result = new Pregel().run(vertices, messages) {
-      (self: Vertex[Option[Int],Int], messages: Iterable[Message[Int]]) =>
+      (self: Vertex[Option[Int],Int], messages: Iterable[Message[Int]], superstep: Int) =>
         val newValue = (self.value, messages) match {
           case (None, ms) if ms.size == 0 => None
           case (v, ms) =>

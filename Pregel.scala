@@ -25,11 +25,11 @@ class Pregel[V, M, E]() {
     startMessages += message
   }
 
-  def run(sc: SparkContext)(compute: (Vertex[V,E], Iterable[Message[M]]) => (Vertex[V,E], Iterable[Message[M]])): RDD[Vertex[V,E]] =
+  def run(sc: SparkContext)(compute: (Vertex[V,E], Iterable[Message[M]], Int) => (Vertex[V,E], Iterable[Message[M]])): RDD[Vertex[V,E]] =
     run(sc.parallelize(startVertices.values.toSeq), sc.parallelize(startMessages))(compute)
 
-  def run(vertices: RDD[Vertex[V,E]], messages: RDD[Message[M]])(
-    compute: (Vertex[V,E], Iterable[Message[M]]) =>
+  def run(vertices: RDD[Vertex[V,E]], messages: RDD[Message[M]], superstep: Int = 0)(
+    compute: (Vertex[V,E], Iterable[Message[M]], Int) =>
       (Vertex[V,E], Iterable[Message[M]])): RDD[Vertex[V,E]] = {
     println("Vertices:\n" + 
             vertices.map("\t" + _.toString).collect.mkString("\n") + "\n" +
@@ -53,7 +53,7 @@ class Pregel[V, M, E]() {
           if (ms.isEmpty && vertex.state == Inactive)
             List((vertex, ms))
           else
-            List(compute(vertex, ms))
+            List(compute(vertex, ms, superstep))
         }
       }
     }.cache
@@ -64,7 +64,7 @@ class Pregel[V, M, E]() {
     if (newMessages.count == 0 && newVertices.forall(_.state == Inactive))
       newVertices
     else
-      run(newVertices, newMessages)(compute)
+      run(newVertices, newMessages, superstep + 1)(compute)
   }
 }
 
