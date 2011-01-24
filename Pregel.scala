@@ -28,16 +28,12 @@ class Pregel[V, M, E]() {
   def run(sc: SparkContext)(compute: (Vertex[V,E], Iterable[Message[M]], Int) => (Vertex[V,E], Iterable[Message[M]])): RDD[Vertex[V,E]] =
     run(sc.parallelize(startVertices.values.toSeq), sc.parallelize(startMessages))(compute)
 
+  def run(vertices: RDD[Vertex[V, E]], sc: SparkContext)(compute: (Vertex[V,E], Iterable[Message[M]], Int) => (Vertex[V,E], Iterable[Message[M]])): RDD[Vertex[V,E]] =
+    run(vertices, sc.parallelize(startMessages))(compute)
+
   def run(vertices: RDD[Vertex[V,E]], messages: RDD[Message[M]], superstep: Int = 0)(
     compute: (Vertex[V,E], Iterable[Message[M]], Int) =>
       (Vertex[V,E], Iterable[Message[M]])): RDD[Vertex[V,E]] = {
-    println("Vertices:\n" + 
-            vertices.map("\t" + _.toString).collect.mkString("\n") + "\n" +
-            "Messages:\n" +
-            messages.map("\n" + _.toString).collect.mkString("\n") + "\n")
-    
-    // Console.readLine("Press Enter... ")
-
     val verticesWithId = vertices.map(v => (v.id, v))
     val messagesWithId = messages.map(m => (m.targetId, m))
     val joined = verticesWithId outerJoin messagesWithId
