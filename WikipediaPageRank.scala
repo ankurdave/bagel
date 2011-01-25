@@ -37,6 +37,7 @@ object WikipediaPageRank {
       })
 
     // Do the computation
+    val epsilon = 0.001 / numVertices
     val result = new Pregel().run(vertices, sc) {
       (self: Vertex[Double, Option[Nothing]], messages: Iterable[Message[Double]], superstep: Int) =>
         val newValue =
@@ -45,14 +46,16 @@ object WikipediaPageRank {
           else
             self.value
 
+        val terminate = (superstep >= 10 && (newValue - self.value).abs < epsilon) || superstep >= 30
+
         val outbox =
-          if (superstep < 30)
+          if (!terminate)
             self.outEdges.map(edge =>
-              Message(edge.targetId, newValue / messages.size))
+              Message(edge.targetId, newValue / self.outEdges.size))
           else
             List()
 
-        val newState = if (superstep < 30) Active else Inactive
+        val newState = if (!terminate) Active else Inactive
 
         (Vertex(self.id, newValue, self.outEdges, newState), outbox)
     }
