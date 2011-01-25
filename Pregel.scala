@@ -34,6 +34,8 @@ class Pregel[V, M, E]() {
   def run(vertices: RDD[Vertex[V,E]], messages: RDD[Message[M]], superstep: Int = 0)(
     compute: (Vertex[V,E], Iterable[Message[M]], Int) =>
       (Vertex[V,E], Iterable[Message[M]])): RDD[Vertex[V,E]] = {
+    System.out.println("Starting superstep "+superstep)
+
     val verticesWithId = vertices.map(v => (v.id, v))
     val messagesWithId = messages.map(m => (m.targetId, m))
     val joined = verticesWithId outerJoin messagesWithId

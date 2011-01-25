@@ -52,7 +52,7 @@ object WikipediaPageRank {
           else
             List()
 
-        val newState = if (superstep < 30) Inactive else Active
+        val newState = if (superstep < 30) Active else Inactive
 
         (Vertex(self.id, newValue, self.outEdges, newState), outbox)
     }
