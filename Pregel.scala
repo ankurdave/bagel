@@ -34,12 +34,15 @@ class Pregel[V, M, E]() {
   def run(vertices: RDD[Vertex[V,E]], messages: RDD[Message[M]], superstep: Int = 0)(
     compute: (Vertex[V,E], Iterable[Message[M]], Int) =>
       (Vertex[V,E], Iterable[Message[M]])): RDD[Vertex[V,E]] = {
-    System.out.println("Starting superstep "+superstep)
+    println("Starting superstep "+superstep+".")
 
     val verticesWithId = vertices.map(v => (v.id, v))
     val messagesWithId = messages.map(m => (m.targetId, m))
+    println("Joining vertices with messages...")
     val joined = verticesWithId outerJoin messagesWithId
+    println("Done joining vertices with messages.")
 
+    println("Running flatMap to process vertices...")
     val processed = joined.flatMap {
       case (vertexId, (vs, ms)) => {
         if (vs.isEmpty) {
@@ -55,14 +58,21 @@ class Pregel[V, M, E]() {
         }
       }
     }.cache
+    println("Done processing vertices.")
 
-    val newVertices = processed.map(_._1)
-    val newMessages = processed.map(_._2).flatMap(identity)
+    println("Separating vertices and messages...")
+    val newVertices = processed.map(_._1).cache
+    val newMessages = processed.map(_._2).flatMap(identity).cache
+    println("Done separating vertices and messages.")
 
-    if (newMessages.count == 0 && newVertices.forall(_.state == Inactive))
+    println("Calculating whether to halt...")
+    if (newMessages.count == 0 && newVertices.forall(_.state == Inactive)) {
+      println("Decided to halt.")
       newVertices
-    else
+    } else {
+      println("Decided to continue.")
       run(newVertices, newMessages, superstep + 1)(compute)
+    }
   }
 }
 
