@@ -3,86 +3,80 @@ import spark.SparkContext._
 import scala.collection.mutable.HashMap
 import scala.collection.mutable.ListBuffer
 
-class Pregel[V, M, E]() {
+object Pregel {
   implicit def RDDExtensions[T](self: RDD[T]) = new RDDExtensions(self)
   implicit def PairRDDExtensions[K, V](self: RDD[(K, V)]) = new PairRDDExtensions(self)
-  
-  private val startVertices: HashMap[String, Vertex[V, E]] = new HashMap()
-  private val startMessages: ListBuffer[Message[M]] = new ListBuffer()
 
-  def addVertex(vertex: Vertex[V, E]) {
-    startVertices.update(vertex.id, vertex)
-  }
-
-  def addEdge(edge: Edge[E], vertexId: String, default: String => Vertex[V,E]) {
-    startVertices.update(vertexId, startVertices.get(vertexId) match {
-      case Some(vertex) => vertex.copy(outEdges = edge +: vertex.outEdges)
-      case None => default(vertexId)
-    })
-  }
-
-  def addMessage(message: Message[M]) {
-    startMessages += message
-  }
-
-  def run(sc: SparkContext)(compute: (Vertex[V,E], Iterable[Message[M]], Int) => (Vertex[V,E], Iterable[Message[M]])): RDD[Vertex[V,E]] =
-    run(sc.parallelize(startVertices.values.toSeq), sc.parallelize(startMessages))(compute)
-
-  def run(vertices: RDD[Vertex[V, E]], sc: SparkContext)(compute: (Vertex[V,E], Iterable[Message[M]], Int) => (Vertex[V,E], Iterable[Message[M]])): RDD[Vertex[V,E]] =
-    run(vertices, sc.parallelize(startMessages))(compute)
-
-  def run(vertices: RDD[Vertex[V,E]], messages: RDD[Message[M]], superstep: Int = 0)(
-    compute: (Vertex[V,E], Iterable[Message[M]], Int) =>
-      (Vertex[V,E], Iterable[Message[M]])): RDD[Vertex[V,E]] = {
+  /**
+   * Runs a Pregel job on the given vertices, running the specified
+   * compute function on each vertex in every superstep. Before
+   * beginning the first superstep, sends the given messages to their
+   * destination vertices. In the join stage, launches splits
+   * separate tasks (where splits is manually specified to work
+   * around a bug in Spark).
+   *
+   * Halts when no more messages are being sent between vertices, and
+   * all vertices have voted to halt by setting their state to
+   * Inactive.
+   */
+  def run[V <: Vertex, M <: Message](vertices: RDD[V], messages: RDD[M], splits: Int, superstep: Int = 0)(compute: (Vertex, Iterable[M], Int) => (Vertex, Iterable[M])): RDD[V] = {
     println("Starting superstep "+superstep+".")
 
+    // Bring together vertices and messages
     val verticesWithId = vertices.map(v => (v.id, v))
     val messagesWithId = messages.map(m => (m.targetId, m))
-    println("Joining vertices with messages...")
-    val joined = verticesWithId outerJoin messagesWithId
-    println("Done joining vertices with messages.")
+    val joined = verticesWithId.outerJoin(messagesWithId, splits)
 
-    println("Running flatMap to process vertices...")
+    // Run compute on each vertex. Note that vs should only contain 0
+    // or 1 elements, so anything else throws an exception.
     val processed = joined.flatMap {
-      case (vertexId, (vs, ms)) => {
-        if (vs.isEmpty) {
-          List()
-        } else if (vs.length > 1) {
-          throw new Exception("Two vertices with the same ID: "+vertexId)
-        } else {
-          val vertex = vs.head
-          if (ms.isEmpty && vertex.state == Inactive)
-            List((vertex, ms))
-          else
-            List(compute(vertex, ms, superstep))
-        }
+      case (id, (vs, ms)) => vs match {
+        case Seq() => List()
+        case Seq(v) if (ms.isEmpty && v.state == Inactive) =>
+          List((v, ms))
+        case Seq(v) =>
+          List(compute(v, ms, superstep))
+        case _ => throw new Exception("Two vertices with the same ID: "+id)
       }
     }.cache
-    println("Done processing vertices.")
 
-    println("Separating vertices and messages...")
-    val newVertices = processed.map(_._1).cache
-    val newMessages = processed.map(_._2).flatMap(identity).cache
-    println("Done separating vertices and messages.")
+    // Separate vertices from the messages they emitted
+    val newVertices = processed.map(_._1)
+    val newMessages = processed.map(_._2).flatMap(identity)
 
-    println("Calculating whether to halt...")
-    if (newMessages.count == 0 && newVertices.forall(_.state == Inactive)) {
-      println("Decided to halt.")
+    if (newMessages.count == 0 && newVertices.forall(_.state == Inactive))
       newVertices
-    } else {
-      println("Decided to continue.")
-      run(newVertices, newMessages, superstep + 1)(compute)
-    }
+    else
+      run(newVertices, newMessages, splits, superstep + 1)(compute)
   }
 }
 
-case class Message[A](targetId: String, value: A)
-case class Vertex[A,B](id: String, value: A, outEdges: Seq[Edge[B]], state: VertexState)
+/**
+ * Represents a Pregel vertex. Stores a unique ID, a list of edges,
+ * and the current state. Optionally can be subclassed to store state
+ * along with each vertex.
+ */
+class Vertex(val id: String, val outEdges: Seq[Edge], val state: VertexState)
 
-case class Edge[A](targetId: String, value: A) {
-  def messageAlong[B](messageValue: B) = Message(targetId, messageValue)
-}
+/**
+ * Represents a Pregel message to a target vertex. Optionally can be
+ * subclassed to contain a payload.
+ */
+class Message(val targetId: String)
 
+/**
+ * Represents a directed edge between two vertices. Owned by the
+ * source vertex, and contains the ID of the target vertex. Optionally
+ * can be subclassed to store state along with each edge.
+ */
+class Edge(targetId: String)
+
+/**
+ * Case enumeration representing the state of a Pregel vertex. Active
+ * vertices run their computation in every superstep. Inactive
+ * vertices have voted to halt and do not run computation unless they
+ * receive a message.
+ */
 sealed abstract class VertexState
 case object Active extends VertexState
 case object Inactive extends VertexState
