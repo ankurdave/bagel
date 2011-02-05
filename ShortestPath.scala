@@ -3,15 +3,16 @@ import spark.SparkContext._
 
 object ShortestPath {
   def main(args: Array[String]) {
-    if (args.length < 3) {
+    if (args.length < 4) {
       System.err.println("Usage: ShortestPath <graphFile> <startVertex> " +
-                         "<host>")
+                         "<numSplits> <host>")
       System.exit(-1)
     }
 
     val graphFile = args(0)
     val startVertex = args(1)
-    val host = args(2)
+    val numSplits = args(2).toInt
+    val host = args(3)
     val sc = new SparkContext(host, "ShortestPath")
 
     // Parse the graph data from a file into two RDDs, vertices and messages
@@ -26,10 +27,10 @@ object ShortestPath {
          case (vertexId, lines) => {
            val outEdges = lines.collect {
              case Array(_, targetId, edgeValue) =>
-               Edge(targetId, edgeValue.toInt)
+               new SPEdge(targetId, edgeValue.toInt)
            }
            
-           Vertex[Option[Int],Int](vertexId, None, outEdges, Active)
+           new SPVertex(vertexId, None, outEdges, Active)
          }
        })
 
@@ -37,15 +38,15 @@ object ShortestPath {
       (lines.filter(_.length == 2)
        .map {
          case Array(vertexId, messageValue) =>
-           Message(vertexId, messageValue.toInt)
+           new SPMessage(vertexId, messageValue.toInt)
        })
     
     System.err.println("Read "+vertices.count()+" vertices and "+
                        messages.count()+" messages.")
 
     // Do the computation
-    val result = new Pregel().run(vertices, messages) {
-      (self: Vertex[Option[Int],Int], messages: Iterable[Message[Int]], superstep: Int) =>
+    val result = Pregel.run[SPVertex, SPMessage](vertices, messages, numSplits) {
+      (self: SPVertex, messages: Iterable[SPMessage], superstep: Int) =>
         val newValue = (self.value, messages) match {
           case (None, ms) if ms.size == 0 => None
           case (v, ms) =>
@@ -55,11 +56,11 @@ object ShortestPath {
         val outbox =
           if (newValue != self.value)
             self.outEdges.map(edge =>
-              edge.messageAlong(newValue.get + edge.value))
+              new SPMessage(edge.targetId, newValue.get + edge.value))
           else
             List()
 
-        (Vertex(self.id, newValue, self.outEdges, Inactive), outbox)
+        (new SPVertex(self.id, newValue, self.outEdges, Inactive), outbox)
     }
 
     // Print the result
@@ -70,3 +71,7 @@ object ShortestPath {
     println(shortest)
   }
 }
+
+@serializable class SPVertex(val id: String, val value: Option[Int], val outEdges: Seq[SPEdge], val state: VertexState) extends Vertex
+@serializable class SPEdge(val targetId: String, val value: Int) extends Edge
+@serializable class SPMessage(val targetId: String, val value: Int) extends Message

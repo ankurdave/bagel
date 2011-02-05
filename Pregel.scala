@@ -19,7 +19,7 @@ object Pregel {
    * all vertices have voted to halt by setting their state to
    * Inactive.
    */
-  def run[V <: Vertex, M <: Message](vertices: RDD[V], messages: RDD[M], splits: Int, superstep: Int = 0)(compute: (Vertex, Iterable[M], Int) => (Vertex, Iterable[M])): RDD[V] = {
+  def run[V <: Vertex : Manifest, M <: Message : Manifest](vertices: RDD[V], messages: RDD[M], splits: Int, superstep: Int = 0)(compute: (V, Iterable[M], Int) => (V, Iterable[M])): RDD[V] = {
     println("Starting superstep "+superstep+".")
 
     // Bring together vertices and messages
@@ -52,24 +52,30 @@ object Pregel {
 }
 
 /**
- * Represents a Pregel vertex. Stores a unique ID, a list of edges,
- * and the current state. Optionally can be subclassed to store state
- * along with each vertex.
+ * Represents a Pregel vertex. Must be subclassed to store state
+ * along with each vertex. Must be annotated with @serializable.
  */
-class Vertex(val id: String, val outEdges: Seq[Edge], val state: VertexState)
+trait Vertex {
+  val id: String
+  val state: VertexState
+}
 
 /**
- * Represents a Pregel message to a target vertex. Optionally can be
- * subclassed to contain a payload.
+ * Represents a Pregel message to a target vertex. Must be
+ * subclassed to contain a payload. Must be annotated with @serializable.
  */
-class Message(val targetId: String)
+trait Message {
+  val targetId: String
+}
 
 /**
  * Represents a directed edge between two vertices. Owned by the
- * source vertex, and contains the ID of the target vertex. Optionally
- * can be subclassed to store state along with each edge.
+ * source vertex, and contains the ID of the target vertex. Must
+ * be subclassed to store state along with each edge. Must be annotated with @serializable.
  */
-class Edge(targetId: String)
+trait Edge {
+  val targetId: String
+}
 
 /**
  * Case enumeration representing the state of a Pregel vertex. Active

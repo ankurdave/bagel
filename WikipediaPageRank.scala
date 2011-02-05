@@ -5,14 +5,15 @@ import scala.xml.{XML,NodeSeq}
 
 object WikipediaPageRank {
   def main(args: Array[String]) {
-    if (args.length < 3) {
-      System.err.println("Usage: PageRank <inputFile> <threshold> <host>")
+    if (args.length < 4) {
+      System.err.println("Usage: PageRank <inputFile> <threshold> <numSplits> <host>")
       System.exit(-1)
     }
 
     val inputFile = args(0)
     val threshold = args(1).toDouble
-    val host = args(2)
+    val numSplits = args(2).toInt
+    val host = args(3)
     val sc = new SparkContext(host, "WikipediaPageRank")
 
     // Parse the Wikipedia page data into a graph
@@ -31,15 +32,14 @@ object WikipediaPageRank {
               NodeSeq.Empty
             }
           }
-        val outEdges = links.map(link =>
-          Edge[Option[Nothing]](link.text, None))
-        Vertex(title, 1.0 / numVertices, outEdges, Active)
+        val outEdges = links.map(link => new PREdge(link.text))
+        new PRVertex(title, 1.0 / numVertices, outEdges, Active)
       })
 
     // Do the computation
     val epsilon = 0.001 / numVertices
-    val result = new Pregel().run(vertices, sc) {
-      (self: Vertex[Double, Option[Nothing]], messages: Iterable[Message[Double]], superstep: Int) =>
+    val result = Pregel.run[PRVertex, PRMessage](vertices, sc.parallelize(List[PRMessage]()), numSplits) {
+      (self: PRVertex, messages: Iterable[PRMessage], superstep: Int) =>
         val newValue =
           if (messages.nonEmpty)
             0.15 / numVertices + 0.85 * messages.map(_.value).sum
@@ -51,13 +51,13 @@ object WikipediaPageRank {
         val outbox =
           if (!terminate)
             self.outEdges.map(edge =>
-              Message(edge.targetId, newValue / self.outEdges.size))
+              new PRMessage(edge.targetId, newValue / self.outEdges.size))
           else
             List()
 
         val newState = if (!terminate) Active else Inactive
 
-        (Vertex(self.id, newValue, self.outEdges, newState), outbox)
+        (new PRVertex(self.id, newValue, self.outEdges, newState), outbox)
     }
 
     // Print the result
@@ -67,3 +67,7 @@ object WikipediaPageRank {
     println(top)
   }
 }
+
+@serializable class PRVertex(val id: String, val value: Double, val outEdges: Seq[PREdge], val state: VertexState) extends Vertex
+@serializable class PRMessage(val targetId: String, val value: Double) extends Message
+@serializable class PREdge(val targetId: String) extends Edge
