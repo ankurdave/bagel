@@ -27,7 +27,7 @@ object Pregel {
     val verticesWithId = vertices.map(v => (v.id, v))
     val messagesWithId = messages.map(m => (m.targetId, m))
     val joined = verticesWithId.outerJoin(messagesWithId, splits).cache
-    println("Done joining vertices and messages.")
+    println("Done joining vertices and messages. "+joined.count())
 
     // Run compute on each vertex. Note that vs should only contain 0
     // or 1 elements, so anything else throws an exception.
@@ -42,13 +42,13 @@ object Pregel {
         case _ => throw new Exception("Two vertices with the same ID: "+id)
       }
     }.cache
-    println("Done running compute on each vertex.")
+    println("Done running compute on each vertex. "+processed.count())
 
     // Separate vertices from the messages they emitted
     println("Splitting vertices and messages...")
     val newVertices = processed.map(_._1).cache
     val newMessages = processed.map(_._2).flatMap(identity).cache
-    println("Done splitting vertices and messages.")
+    println("Done splitting vertices and messages."+newVertices.count())
 
     println("Checking stopping condition...")
     if (newMessages.count == 0 && newVertices.forall(_.state == Inactive))
