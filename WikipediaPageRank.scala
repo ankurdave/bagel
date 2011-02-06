@@ -18,27 +18,34 @@ object WikipediaPageRank {
 
     // Parse the Wikipedia page data into a graph
     val input = sc.textFile(inputFile)
+
+    println("Counting vertices...")
     val numVertices = input.count()
-    val vertices =
-      input.map(line => {
-        val fields = line.split("\t")
-        val (title, body) = (fields(1), fields(3).replace("\\n", "\n"))
-        val links =
+    println("Done counting vertices.")
+
+    println("Parsing input file...")
+    val vertices = input.map(line => {
+      val fields = line.split("\t")
+      val (title, body) = (fields(1), fields(3).replace("\\n", "\n"))
+      val links =
+        if (body == "\\N")
+          NodeSeq.Empty
+        else
           try {
             XML.loadString(body) \\ "link" \ "target"
           } catch {
-            case e: org.xml.sax.SAXParseException => {
+            case e: org.xml.sax.SAXParseException =>
               System.err.println("Article \""+title+"\" has malformed XML in body:\n"+body)
-              NodeSeq.Empty
-            }
+            NodeSeq.Empty
           }
-        val outEdges = links.map(link => new PREdge(link.text))
-        new PRVertex(title, 1.0 / numVertices, outEdges, Active)
-      })
+      val outEdges = links.map(link => new PREdge(link.text))
+      new PRVertex(title, 1.0 / numVertices, outEdges, Active)
+    }).cache
+    println("Done parsing input file.")
 
     // Do the computation
-    val epsilon = 0.001 / numVertices
-    val result = Pregel.run[PRVertex, PRMessage](vertices, sc.parallelize(List[PRMessage]()), numSplits) {
+    val epsilon = 0.01 / numVertices
+    val result = Pregel.run(vertices, sc.parallelize(List[PRMessage]()), numSplits) {
       (self: PRVertex, messages: Iterable[PRMessage], superstep: Int) =>
         val newValue =
           if (messages.nonEmpty)

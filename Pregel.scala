@@ -23,12 +23,15 @@ object Pregel {
     println("Starting superstep "+superstep+".")
 
     // Bring together vertices and messages
+    println("Joining vertices and messages...")
     val verticesWithId = vertices.map(v => (v.id, v))
     val messagesWithId = messages.map(m => (m.targetId, m))
-    val joined = verticesWithId.outerJoin(messagesWithId, splits)
+    val joined = verticesWithId.outerJoin(messagesWithId, splits).cache
+    println("Done joining vertices and messages.")
 
     // Run compute on each vertex. Note that vs should only contain 0
     // or 1 elements, so anything else throws an exception.
+    println("Running compute on each vertex...")
     val processed = joined.flatMap {
       case (id, (vs, ms)) => vs match {
         case Seq() => List()
@@ -39,11 +42,15 @@ object Pregel {
         case _ => throw new Exception("Two vertices with the same ID: "+id)
       }
     }.cache
+    println("Done running compute on each vertex.")
 
     // Separate vertices from the messages they emitted
-    val newVertices = processed.map(_._1)
-    val newMessages = processed.map(_._2).flatMap(identity)
+    println("Splitting vertices and messages...")
+    val newVertices = processed.map(_._1).cache
+    val newMessages = processed.map(_._2).flatMap(identity).cache
+    println("Done splitting vertices and messages.")
 
+    println("Checking stopping condition...")
     if (newMessages.count == 0 && newVertices.forall(_.state == Inactive))
       newVertices
     else
