@@ -29,17 +29,15 @@ object Pregel {
     val joined = verticesWithId.outerJoin(messagesWithId, splits).cache
     println("Done joining vertices and messages. "+joined.count())
 
-    // Run compute on each vertex. Note that vs should only contain 0
-    // or 1 elements, so anything else throws an exception.
+    // Run compute on each vertex
     println("Running compute on each vertex...")
     val processed = joined.flatMap {
       case (id, (vs, ms)) => vs match {
         case Seq() => List()
-        case Seq(v) if (ms.isEmpty && v.state == Inactive) =>
+        case Seq(v, _*) if (ms.isEmpty && v.state == Inactive) =>
           List((v, ms))
-        case Seq(v) =>
+        case Seq(v, _*) =>
           List(compute(v, ms, superstep))
-        case _ => throw new Exception("Two vertices with the same ID: "+id)
       }
     }.cache
     println("Done running compute on each vertex. "+processed.count())
