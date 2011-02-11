@@ -38,10 +38,11 @@ object WikipediaPageRank {
               System.err.println("Article \""+title+"\" has malformed XML in body:\n"+body)
             NodeSeq.Empty
           }
-      val outEdges = links.map(link => new PREdge(link.text))
+      val outEdges = links.map(link => new PREdge(link.text)).toArray
       new PRVertex(title, 1.0 / numVertices, outEdges, Active)
     }).cache
-    println("Done parsing input file.")
+
+    println("Done parsing input file. Vertices: "+vertices.count())
 
     // Do the computation
     val epsilon = 0.01 / numVertices
