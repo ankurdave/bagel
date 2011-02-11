@@ -27,7 +27,7 @@ object Pregel {
     val verticesWithId = vertices.map(v => (v.id, v))
     val messagesWithId = messages.map(m => (m.targetId, m))
     val joined = verticesWithId.outerJoin(messagesWithId, splits)
-    println("Done joining vertices and messages. "+joined.count())
+    println("Done joining vertices and messages.")
 
     // Run compute on each vertex
     println("Running compute on each vertex...")
@@ -40,13 +40,13 @@ object Pregel {
           List(compute(v, ms, superstep))
       }
     }.cache
-    println("Done running compute on each vertex. "+processed.count())
+    println("Done running compute on each vertex.")
 
     // Separate vertices from the messages they emitted
     println("Splitting vertices and messages...")
     val newVertices = processed.map(_._1)
     val newMessages = processed.map(_._2).flatMap(identity)
-    println("Done splitting vertices and messages."+newVertices.count())
+    println("Done splitting vertices and messages.")
 
     println("Checking stopping condition...")
     if (newMessages.count == 0 && newVertices.forall(_.state == Inactive))

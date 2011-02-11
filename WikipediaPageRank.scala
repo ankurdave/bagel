@@ -42,7 +42,8 @@ object WikipediaPageRank {
       new PRVertex(title, 1.0 / numVertices, outEdges, Active)
     }).cache
 
-    println("Done parsing input file. Vertices: "+vertices.count())
+    println("Done parsing input file.")
+    println("Input file had "+vertices.count() + " vertices.")
 
     // Do the computation
     val epsilon = 0.01 / numVertices
