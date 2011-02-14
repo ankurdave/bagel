@@ -32,7 +32,7 @@ object WikipediaPageRank {
           NodeSeq.Empty
         else
           try {
-            XML.loadString(body) \\ "link" \ "target"
+            new String(XML.loadString(body) \\ "link" \ "target")
           } catch {
             case e: org.xml.sax.SAXParseException =>
               System.err.println("Article \""+title+"\" has malformed XML in body:\n"+body)
