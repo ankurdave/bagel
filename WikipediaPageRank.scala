@@ -32,14 +32,14 @@ object WikipediaPageRank {
           NodeSeq.Empty
         else
           try {
-            new String(XML.loadString(body) \\ "link" \ "target")
+            XML.loadString(body) \\ "link" \ "target"
           } catch {
             case e: org.xml.sax.SAXParseException =>
               System.err.println("Article \""+title+"\" has malformed XML in body:\n"+body)
             NodeSeq.Empty
           }
-      val outEdges = links.map(link => new PREdge(link.text)).toArray
-      new PRVertex(title, 1.0 / numVertices, outEdges, Active)
+      val outEdges = links.map(link => new PREdge(new String(link.text))).toArray
+      new PRVertex(new String(title), 1.0 / numVertices, outEdges, Active)
     }).cache
 
     println("Done parsing input file.")
