@@ -14,6 +14,6 @@ export MESOS_HOME=/root/mesos
 export SCALA_HOME=/root/scala-2.8.0.final
 export SPARK_HOME=/root/spark
 export SPARK_CLASSPATH=/root/pregel-spark/build/pregel-spark.jar
-export SPARK_JAVA_OPTS='-Dspark.cache.class=spark.SoftReferenceCache -Dspark.boundedMemoryCache.memoryFraction=0.5 -Dspark.shuffle.class=spark.LocalFileShuffle -Dspark.local.dir=/mnt -XX:+PrintGCDetails -XX:+PrintGCTimeStamps -XX:+NewRatio=4
+export SPARK_JAVA_OPTS='-Dspark.cache.class=spark.SoftReferenceCache -Dspark.boundedMemoryCache.memoryFraction=0.5 -Dspark.shuffle.class=spark.LocalFileShuffle -Dspark.local.dir=/mnt -XX:+PrintGCDetails -XX:+PrintGCTimeStamps -XX:NewRatio=4
 -XX:+UseParallelOldGC -XX:+UseParallelGC'
 export SPARK_MEM=13g
