@@ -45,8 +45,6 @@ object WikipediaPageRank {
     println("Done parsing input file.")
     println("Input file had "+vertices.count() + " vertices.")
 
-    Thread.sleep(10000000)
-
     // Do the computation
     val epsilon = 0.01 / numVertices
     val result = Pregel.run(vertices, sc.parallelize(List[PRMessage]()), numSplits) {
