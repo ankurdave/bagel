@@ -19,24 +19,28 @@ object Pregel {
    * all vertices have voted to halt by setting their state to
    * Inactive.
    */
-  def run[V <: Vertex : Manifest, M <: Message : Manifest](vertices: RDD[V], messages: RDD[M], splits: Int, superstep: Int = 0)(compute: (V, Iterable[M], Int) => (V, Iterable[M])): RDD[V] = {
+  def run[V <: Vertex : Manifest, M <: Message : Manifest, A](vertices: RDD[V], messages: RDD[M], splits: Int, messageCombiner: (A, M) => A, defaultCombined: A, mergeCombined: (A, A) => A, superstep: Int = 0)(compute: (V, A, Int) => (V, A)): RDD[V] = {
     println("Starting superstep "+superstep+".")
 
     // Bring together vertices and messages
     println("Joining vertices and messages...")
     val verticesWithId = vertices.map(v => (v.id, v))
     val messagesWithId = messages.map(m => (m.targetId, m))
-    val joined = verticesWithId.outerJoin(messagesWithId, splits)
+    val joined = verticesWithId.groupByKeyAsymmetrical(messagesWithId, messageCombiner, defaultCombined, mergeCombined, splits)
     println("Done joining vertices and messages.")
 
     // Run compute on each vertex
     println("Running compute on each vertex...")
-    val processed = joined.flatMap {
+    val processed = joined.filter {
+      case (id, (None, ms)) => false
+      case (id, (Some(v), ms)) => true
+    } map {
+      flatMap {
       case (id, (vs, ms)) => vs match {
-        case Seq() => List()
-        case Seq(v, _*) if (ms.isEmpty && v.state == Inactive) =>
+        case None => List()
+        case Some(v) if (ms.isEmpty && v.state == Inactive) =>
           List((v, ms))
-        case Seq(v, _*) =>
+        case Some(v) =>
           List(compute(v, ms, superstep))
       }
     }.cache

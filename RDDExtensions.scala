@@ -14,23 +14,28 @@ class RDDExtensions[T](self: RDD[T]) {
 }
 
 class PairRDDExtensions[K, V](self: RDD[(K, V)]) {
-  // Differs from the standard join in two ways: (1) a pair from one
-  // RDD is included even if there's no corresponding pair in the
-  // other RDD, and (2) multiple values are grouped together in a Seq
-  // rather than forming the Cartesian product.
-  def outerJoin[W](other: RDD[(K, W)], numSplits: Int): RDD[(K, (Seq[V], Seq[W]))] = {
+  def groupByKeyAsymmetrical[W, A](other: RDD[(K, W)], mergeOther: (A, W) => A, defaultOther: A, mergeMultipleOther: (A, A) => A, numSplits: Int): RDD[(K, (V, A))] = {
     val vs: RDD[(K, Either[V, W])] = self.map { case (k, v) => (k, Left(v)) }
     val ws: RDD[(K, Either[V, W])] = other.map { case (k, w) => (k, Right(w)) }
-    (vs ++ ws).groupByKey(numSplits).map {
-      case (k, seq) => {
-        val vbuf = new ArrayBuffer[V]
-        val wbuf = new ArrayBuffer[W]
-        seq.foreach(_ match {
-          case Left(v) => vbuf += v
-          case Right(w) => wbuf += w
-        })
-        (k, (vbuf.toList, wbuf.toList))
-      }
+
+    def createCombiner(a: Either[V, W]) = a match {
+      case Left(v) => (Some(v), defaultOther)
+      case Right(w) => (None, mergeOther(defaultOther, w))
+    }
+
+    def mergeCombiners(b1: (Option[V], A), b2: (Option[V], A)) = {
+      val (v1, ws1) = b1
+      val (v2, ws2) = b2
+      val v = v1.getOrElse(v2.getOrElse(None))
+      (v, mergeMultipleOther(ws1, ws2))
+    }
+
+    def mergeValue(buf: (Option[V], A), a: Either[V, W]) = a match {
+      case Left(v) => (v, buf._2)
+      case Right(w) => (buf._1, mergeOther(buf._2, w))
+    }
+
+    (vs ++ ws).combineByKey(createCombiner, mergeValue, mergeCombiners, numSplits)
     }
   }
 
