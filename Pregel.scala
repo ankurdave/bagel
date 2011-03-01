@@ -19,7 +19,7 @@ object Pregel {
    * all vertices have voted to halt by setting their state to
    * Inactive.
    */
-  def run[V <: Vertex : Manifest, M <: Message : Manifest, A](vertices: RDD[V], messages: RDD[M], splits: Int, messageCombiner: (A, M) => A, defaultCombined: A, mergeCombined: (A, A) => A, superstep: Int = 0)(compute: (V, A, Int) => (V, A)): RDD[V] = {
+  def run[V <: Vertex : Manifest, M <: Message : Manifest, C](vertices: RDD[V], messages: RDD[M], splits: Int, messageCombiner: (C, M) => C, defaultCombined: C, mergeCombined: (C, C) => C, superstep: Int = 0)(compute: (V, C, Int) => (V, Iterable[M])): RDD[V] = {
     println("Starting superstep "+superstep+".")
 
     // Bring together vertices and messages
@@ -31,18 +31,10 @@ object Pregel {
 
     // Run compute on each vertex
     println("Running compute on each vertex...")
-    val processed = joined.filter {
-      case (id, (None, ms)) => false
-      case (id, (Some(v), ms)) => true
-    } map {
-      flatMap {
-      case (id, (vs, ms)) => vs match {
-        case None => List()
-        case Some(v) if (ms.isEmpty && v.state == Inactive) =>
-          List((v, ms))
-        case Some(v) =>
+    val processed = joined.flatMap {
+      case (id, (None, ms)) => List()
+      case (id, (Some(v), ms)) =>
           List(compute(v, ms, superstep))
-      }
     }.cache
     println("Done running compute on each vertex.")
 
@@ -56,7 +48,7 @@ object Pregel {
     if (newMessages.count == 0 && newVertices.forall(_.state == Inactive))
       newVertices
     else
-      run(newVertices, newMessages, splits, superstep + 1)(compute)
+      run(newVertices, newMessages, splits, messageCombiner, defaultCombined, mergeCombined, superstep + 1)(compute)
   }
 }
 
