@@ -30,7 +30,7 @@ object ShortestPath {
                new SPEdge(targetId, edgeValue.toInt)
            }
            
-           new SPVertex(vertexId, None, outEdges, Active)
+           new SPVertex(vertexId, Int.MaxValue, outEdges, Active)
          }
        })
 
@@ -45,18 +45,17 @@ object ShortestPath {
                        messages.count()+" messages.")
 
     // Do the computation
-    val result = Pregel.run[SPVertex, SPMessage](vertices, messages, numSplits) {
-      (self: SPVertex, messages: Iterable[SPMessage], superstep: Int) =>
-        val newValue = (self.value, messages) match {
-          case (None, ms) if ms.size == 0 => None
-          case (v, ms) =>
-            Some((List(v.getOrElse(Int.MaxValue)) ++ ms.map(_.value)).min)
-        }
+    def messageCombiner(minSoFar: Int, message: SPMessage): Int =
+      Math.min(minSoFar, message.value)
+
+    val result = Pregel.run(vertices, messages, numSplits, messageCombiner, Int.MaxValue, Math.min _) {
+      (self: SPVertex, messageMinValue: Int, superstep: Int) =>
+        val newValue = Math.min(self.value, messageMinValue)
 
         val outbox =
           if (newValue != self.value)
             self.outEdges.map(edge =>
-              new SPMessage(edge.targetId, newValue.get + edge.value))
+              new SPMessage(edge.targetId, newValue + edge.value))
           else
             List()
 
@@ -66,12 +65,14 @@ object ShortestPath {
     // Print the result
     System.err.println("Shortest path from "+startVertex+" to all vertices:")
     val shortest = result.map(vertex =>
-      "%s\t%s\n".format(vertex.id,
-                        vertex.value.getOrElse("inf"))).collect.mkString
+      "%s\t%s\n".format(vertex.id, vertex.value match {
+        case x if x == Int.MaxValue => "inf"
+        case x => x
+      })).collect.mkString
     println(shortest)
   }
 }
 
-@serializable class SPVertex(val id: String, val value: Option[Int], val outEdges: Seq[SPEdge], val state: VertexState) extends Vertex
+@serializable class SPVertex(val id: String, val value: Int, val outEdges: Seq[SPEdge], val state: VertexState) extends Vertex
 @serializable class SPEdge(val targetId: String, val value: Int) extends Edge
 @serializable class SPMessage(val targetId: String, val value: Int) extends Message
