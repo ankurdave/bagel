@@ -13,7 +13,7 @@ class RDDExtensions[T](self: RDD[T]) {
   }
 }
 
-class PairRDDExtensions[K, V](self: RDD[(K, V)]) {
+@serializable class PairRDDExtensions[K, V](self: RDD[(K, V)]) {
   def groupByKeyAsymmetrical[W, C](other: RDD[(K, W)], combiner: (C, W) => C, defaultCombined: C, mergeCombined: (C, C) => C, numSplits: Int): RDD[(K, (Option[V], C))] = {
     val vs: RDD[(K, Either[V, W])] = self.map { case (k, v) => (k, Left(v)) }
     val ws: RDD[(K, Either[V, W])] = other.map { case (k, w) => (k, Right(w)) }

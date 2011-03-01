@@ -47,11 +47,16 @@ object WikipediaPageRank {
 
     // Do the computation
     val epsilon = 0.01 / numVertices
-    val result = Pregel.run(vertices, sc.parallelize(List[PRMessage]()), numSplits) {
-      (self: PRVertex, messages: Iterable[PRMessage], superstep: Int) =>
+
+    def messageCombiner(minSoFar: Double, message: PRMessage): Double =
+      minSoFar + message.value
+    def mergeCombined(a: Double, b: Double) = a + b
+
+    val result = Pregel.run(vertices, sc.parallelize(List[PRMessage]()), numSplits, messageCombiner, 0.0, mergeCombined) {
+      (self: PRVertex, messageSum: Double, superstep: Int) =>
         val newValue =
-          if (messages.nonEmpty)
-            0.15 / numVertices + 0.85 * messages.map(_.value).sum
+          if (messageSum != 0)
+            0.15 / numVertices + 0.85 * messageSum
           else
             self.value
 
