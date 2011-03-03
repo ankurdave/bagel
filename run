@@ -1,5 +1,11 @@
 #!/bin/bash
 
+if [ ! -e $SPARK_HOME ]
+then
+  echo "First set SPARK_HOME"
+  exit 1
+fi
+
 # Load environment variables from conf/spark-env.sh, if it exists
 if [ -e $SPARK_HOME/conf/spark-env.sh ] ; then
   . $SPARK_HOME/conf/spark-env.sh
@@ -19,21 +25,20 @@ fi
 
 # Set JAVA_OPTS to be able to load native libraries and to set heap size
 JAVA_OPTS="$SPARK_JAVA_OPTS"
-JAVA_OPTS+=" -Djava.library.path=$SPARK_LIBRARY_PATH:$FWDIR/third_party:$FWDIR/src/native:$MESOS_LIBRARY_PATH"
+JAVA_OPTS+=" -Djava.library.path=$SPARK_LIBRARY_PATH:$SPARK_HOME/lib:$SPARK_HOME/src/main/native:$MESOS_LIBRARY_PATH"
 JAVA_OPTS+=" -Xms$SPARK_MEM -Xmx$SPARK_MEM"
 # Load extra JAVA_OPTS from conf/java-opts, if it exists
-if [ -e $FWDIR/conf/java-opts ] ; then
-  JAVA_OPTS+=" `cat $FWDIR/conf/java-opts`"
+if [ -e $SPARK_HOME/conf/java-opts ] ; then
+  JAVA_OPTS+=" `cat $SPARK_HOME/conf/java-opts`"
 fi
 export JAVA_OPTS
 
 # Build up classpath
-function join() {
-    local IFS=$1
-    shift
-    echo "$*"
-}
-CLASSPATH=$(join ':' build/*.jar)
+CLASSPATH="$PWD/target/scala_2.8.1/bagel_2.8.1-1.0.jar"
+for jar in $PWD/lib/*.jar; do
+    CLASSPATH+=":$jar"
+done
+CLASSPATH+=":$MESOS_CLASSPATH"
 export CLASSPATH # Needed for spark-shell
 
 if [ -n "$SCALA_HOME" ]; then
@@ -41,5 +46,7 @@ if [ -n "$SCALA_HOME" ]; then
 else
   SCALA=scala
 fi
+
+echo $CLASSPATH
 
 exec $SCALA -cp $CLASSPATH $@
