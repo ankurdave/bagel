@@ -47,6 +47,4 @@ else
   SCALA=scala
 fi
 
-echo $CLASSPATH
-
 exec $SCALA -cp $CLASSPATH $@

@@ -23,6 +23,7 @@ object Pregel {
    */
   def run[V <: Vertex : Manifest, M <: Message : Manifest, C](vertices: RDD[V], messages: RDD[M], splits: Int, messageCombiner: (C, M) => C, defaultCombined: C, mergeCombined: (C, C) => C, superstep: Int = 0)(compute: (V, C, Int) => (V, Iterable[M])): RDD[V] = {
     println("Starting superstep "+superstep+".")
+    val startTime = System.currentTimeMillis
 
     // Bring together vertices and messages
     println("Joining vertices and messages...")
@@ -45,6 +46,9 @@ object Pregel {
     val newVertices = processed.map(_._1)
     val newMessages = processed.map(_._2).flatMap(identity)
     println("Done splitting vertices and messages.")
+
+    val timeTaken = System.currentTimeMillis - startTime
+    println("Superstep %d took %d s".format(superstep, timeTaken / 1000))
 
     println("Checking stopping condition...")
     if (newMessages.count == 0 && newVertices.forall(_.state == Inactive))
