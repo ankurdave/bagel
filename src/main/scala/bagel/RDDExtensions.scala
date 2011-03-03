@@ -1,3 +1,5 @@
+package bagel
+
 import spark._
 import spark.SparkContext._
 
