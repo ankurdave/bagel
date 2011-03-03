@@ -1,0 +1,34 @@
+#!/bin/bash
+
+pushd /root
+wget http://www.scala-lang.org/downloads/distrib/files/scala-2.8.1.final.tgz
+tar xzvf scala-2.8.1.final.tgz
+popd
+
+pushd /root/spark
+git pull
+cp /root/mesos/lib/mesos.jar /root/spark/core/lib/mesos.jar
+java -Xmx6000M -jar /root/spark/sbt/sbt-launch-*.jar assemble
+popd
+
+pushd /root
+yum install -y mercurial
+hg clone http://bitbucket.org/ankurdave/pregel-spark
+mkdir /root/pregel-spark/lib
+cp /root/spark/core/target/scala_2.8.1/Spark\ Core-assembly-0.0.0.jar /root/pregel-spark/lib/spark.jar
+pushd /root/pregel-spark
+/root/spark/sbt/sbt package
+popd
+popd
+
+pushd /root/persistent-hdfs/bin
+./slaves.sh mkdir /mnt/spark
+./slaves.sh ln -s /mnt/spark /usr/share/nginx/html/spark
+./slaves.sh /etc/init.d/nginx start
+popd
+
+pushd /root
+./mesos-ec2/copy-dir spark
+./mesos-ec2/copy-dir scala-2.8.1.final
+./mesos-ec2/copy-dir pregel-spark
+popd
