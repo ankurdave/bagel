@@ -9,7 +9,7 @@ class SerializingCache extends Cache with Logging {
     val entry = cache.get(key)
     if (entry != null) {
       val startTime = System.currentTimeMillis
-      val result = Utils.deserialize(entry.asInstanceOf[Array[Byte]])
+      val result = Utils.deserialize[Any](entry.asInstanceOf[Array[Byte]])
       val timeTaken = System.currentTimeMillis - startTime
       logInfo("Deserialization for key %s took %d ms".format(key, timeTaken))
       result
