@@ -5,9 +5,34 @@ wget http://www.scala-lang.org/downloads/distrib/files/scala-2.8.1.final.tgz
 tar xzvf scala-2.8.1.final.tgz
 popd
 
+pushd /root/spark/conf
+cat <<EOF > spark-env.sh
+#!/bin/bash
+export MESOS_HOME=/root/mesos
+export SCALA_HOME=/root/scala-2.8.1.final
+export SPARK_HOME=/root/spark
+export SPARK_CLASSPATH=/root/pregel-spark/target/scala_2.8.1/bagel_2.8.1-1.0.jar
+
+export SPARK_JAVA_OPTS='
+-Dspark.cache.class=bagel.SerializingCache
+-Dspark.boundedMemoryCache.memoryFraction=0.2
+-XX:+PrintGCDetails
+-XX:+PrintGCTimeStamps
+-XX:NewRatio=7
+-XX:+UseCompressedOops
+-XX:+UseParallelOldGC
+-XX:+UseParallelGC
+-Dspark.local.dir=/mnt/spark
+-Dspark.shuffle.class=spark.LocalFileShuffle -Dspark.localFileShuffle.external.server.port=80 -Dspark.localFileShuffle.external.server.path=spark'
+
+export SPARK_MEM=13g
+EOF
+export SPARK_MEM=13g
+popd
+
 pushd /root/spark
-git pull
-cp /root/mesos/lib/mesos.jar /root/spark/core/lib/mesos.jar
+git pull http://github.com/ankurdave/spark master
+cp /root/mesos/lib/java/mesos.jar /root/spark/core/lib/mesos.jar
 java -Xmx6000M -jar /root/spark/sbt/sbt-launch-*.jar assembly
 popd
 
