@@ -1,0 +1,9 @@
+#!/bin/bash
+
+pushd /root
+./persistent-hdfs/bin/stop-dfs.sh
+./persistent-hdfs/bin/start-dfs.sh
+./persistent-hdfs/bin/slaves.sh /etc/init.d/nginx start
+./mesos-ec2/stop-mesos
+./mesos-ec2/start-mesos
+popd

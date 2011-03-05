@@ -8,7 +8,7 @@ popd
 pushd /root/spark
 git pull
 cp /root/mesos/lib/mesos.jar /root/spark/core/lib/mesos.jar
-java -Xmx6000M -jar /root/spark/sbt/sbt-launch-*.jar assemble
+java -Xmx6000M -jar /root/spark/sbt/sbt-launch-*.jar assembly
 popd
 
 pushd /root
