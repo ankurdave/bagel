@@ -126,16 +126,11 @@ object WikipediaPageRank {
   }
 
   def writeExternal(out: ObjectOutput) {
-    val idBytes = id.getBytes()
-    out.writeInt(idBytes.length)
-    out.write(idBytes)
+    out.writeUTF(id)
     out.writeDouble(value)
     out.writeInt(outEdges.length)
-    for (e <- outEdges) {
-      val eBytes = e.targetId.getBytes()
-      out.writeInt(eBytes.length)
-      out.write(eBytes)
-    }
+    for (e <- outEdges)
+      out.writeUTF(e.targetId)
     out.writeBoolean(state match {
       case Active => true
       case Inactive => false
@@ -143,17 +138,12 @@ object WikipediaPageRank {
   }
 
   def readExternal(in: ObjectInput) {
-    val idLength = in.readInt()
-    val idBytes = new Array[Byte](idLength)
-    in.read(idBytes, 0, idLength)
-    id = new String(idBytes)
+    id = in.readUTF()
     value = in.readDouble()
-    outEdges = new ArrayBuffer[PREdge]
-    for (i <- 0 until in.readInt()) {
-      val eLength = in.readInt()
-      val eBytes = new Array[Byte](eLength)
-      in.read(eBytes, 0, eLength)
-      outEdges += new PREdge(new String(eBytes))
+    val numEdges = in.readInt()
+    outEdges = new ArrayBuffer[PREdge](numEdges)
+    for (i <- 0 until numEdges) {
+      outEdges += new PREdge(in.readUTF())
     }
     state = if (in.readBoolean()) Active else Inactive
   }
@@ -170,17 +160,12 @@ object WikipediaPageRank {
   }
 
   def writeExternal(out: ObjectOutput) {
-    val idBytes = targetId.getBytes()
-    out.writeInt(idBytes.length)
-    out.write(idBytes)
+    out.writeUTF(targetId)
     out.writeDouble(value)
   }
 
   def readExternal(in: ObjectInput) {
-    val idLength = in.readInt()
-    val idBytes = new Array[Byte](idLength)
-    in.read(idBytes, 0, idLength)
-    targetId = new String(idBytes)
+    targetId = in.readUTF()
     value = in.readDouble()
   }
 }
@@ -194,15 +179,10 @@ object WikipediaPageRank {
    }
 
   def writeExternal(out: ObjectOutput) {
-    val idBytes = targetId.getBytes()
-    out.writeInt(idBytes.length)
-    out.write(idBytes)
+    out.writeUTF(targetId)
   }
 
   def readExternal(in: ObjectInput) {
-    val idLength = in.readInt()
-    val idBytes = new Array[Byte](idLength)
-    in.read(idBytes, 0, idLength)
-    targetId = new String(idBytes)
+    targetId = in.readUTF()
   }
 }
