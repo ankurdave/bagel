@@ -63,8 +63,8 @@ object Pregel {
  * along with each vertex. Must be annotated with @serializable.
  */
 trait Vertex {
-  val id: String
-  val state: VertexState
+  def id: String
+  def state: VertexState
 }
 
 /**
@@ -72,7 +72,7 @@ trait Vertex {
  * subclassed to contain a payload. Must be annotated with @serializable.
  */
 trait Message {
-  val targetId: String
+  def targetId: String
 }
 
 /**
@@ -81,7 +81,7 @@ trait Message {
  * be subclassed to store state along with each edge. Must be annotated with @serializable.
  */
 trait Edge {
-  val targetId: String
+  def targetId: String
 }
 
 /**

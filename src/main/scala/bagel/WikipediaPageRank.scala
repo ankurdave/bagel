@@ -7,6 +7,8 @@ import scala.collection.mutable.ArrayBuffer
 
 import scala.xml.{XML,NodeSeq}
 
+import java.io.{Externalizable,ObjectInput,ObjectOutput,DataOutputStream,DataInputStream}
+
 object WikipediaPageRank {
   def main(args: Array[String]) {
     if (args.length < 4) {
@@ -43,7 +45,7 @@ object WikipediaPageRank {
               System.err.println("Article \""+title+"\" has malformed XML in body:\n"+body)
             NodeSeq.Empty
           }
-      val outEdges = links.map(link => new PREdge(new String(link.text))).toArray
+      val outEdges = ArrayBuffer(links.map(link => new PREdge(new String(link.text))): _*)
       new PRVertex(new String(title), 1.0 / numVertices, outEdges, Active)
     }).cache
 
@@ -87,7 +89,7 @@ object WikipediaPageRank {
           self.outEdges.map(edge =>
             new PRMessage(edge.targetId, newValue / self.outEdges.size))
         else
-          List()
+          ArrayBuffer[PRMessage]()
 
       val newState = if (!terminate) Active else Inactive
 
@@ -109,6 +111,69 @@ object WikipediaPageRank {
   }
 }
 
-@serializable class PRVertex(val id: String, val value: Double, val outEdges: Seq[PREdge], val state: VertexState) extends Vertex
-@serializable class PRMessage(val targetId: String, val value: Double) extends Message
-@serializable class PREdge(val targetId: String) extends Edge
+@serializable class PRVertex(var id: String, var value: Double, var outEdges: ArrayBuffer[PREdge], var state: VertexState) extends Vertex with Externalizable {
+  def writeExternal(out: ObjectOutput) {
+    val idBytes = id.getBytes()
+    out.writeInt(idBytes.length)
+    out.write(idBytes)
+    out.writeDouble(value)
+    out.writeInt(outEdges.length)
+    for (e <- outEdges) {
+      val eBytes = e.targetId.getBytes()
+      out.writeInt(eBytes.length)
+      out.write(eBytes)
+    }
+    out.writeBoolean(state match {
+      case Active => true
+      case Inactive => false
+    })
+  }
+
+  def readExternal(in: ObjectInput) {
+    val idLength = in.readInt()
+    val idBytes = new Array[Byte](idLength)
+    in.read(idBytes, 0, idLength)
+    id = new String(idBytes)
+    value = in.readDouble()
+    outEdges = new ArrayBuffer[PREdge]
+    for (i <- 0 until in.readInt()) {
+      val eLength = in.readInt()
+      val eBytes = new Array[Byte](eLength)
+      in.read(eBytes, 0, eLength)
+      outEdges += new PREdge(new String(eBytes))
+    }
+    state = if (in.readBoolean()) Active else Inactive
+  }
+}
+
+@serializable class PRMessage(var targetId: String, var value: Double) extends Message with Externalizable {
+  def writeExternal(out: ObjectOutput) {
+    val idBytes = targetId.getBytes()
+    out.writeInt(idBytes.length)
+    out.write(idBytes)
+    out.writeDouble(value)
+  }
+
+  def readExternal(in: ObjectInput) {
+    val idLength = in.readInt()
+    val idBytes = new Array[Byte](idLength)
+    in.read(idBytes, 0, idLength)
+    targetId = new String(idBytes)
+    value = in.readDouble()
+  }
+}
+
+@serializable class PREdge(var targetId: String) extends Edge with Externalizable {
+  def writeExternal(out: ObjectOutput) {
+    val idBytes = targetId.getBytes()
+    out.writeInt(idBytes.length)
+    out.write(idBytes)
+  }
+
+  def readExternal(in: ObjectInput) {
+    val idLength = in.readInt()
+    val idBytes = new Array[Byte](idLength)
+    in.read(idBytes, 0, idLength)
+    targetId = new String(idBytes)
+  }
+}

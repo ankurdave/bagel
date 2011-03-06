@@ -3,6 +3,8 @@ package bagel
 import spark._
 import spark.SparkContext._
 
+import scala.math.min
+
 object ShortestPath {
   def main(args: Array[String]) {
     if (args.length < 4) {
@@ -48,11 +50,11 @@ object ShortestPath {
 
     // Do the computation
     def messageCombiner(minSoFar: Int, message: SPMessage): Int =
-      Math.min(minSoFar, message.value)
+      min(minSoFar, message.value)
 
-    val result = Pregel.run(vertices, messages, numSplits, messageCombiner, () => Int.MaxValue, Math.min _) {
+    val result = Pregel.run(vertices, messages, numSplits, messageCombiner, () => Int.MaxValue, min _) {
       (self: SPVertex, messageMinValue: Int, superstep: Int) =>
-        val newValue = Math.min(self.value, messageMinValue)
+        val newValue = min(self.value, messageMinValue)
 
         val outbox =
           if (newValue != self.value)
