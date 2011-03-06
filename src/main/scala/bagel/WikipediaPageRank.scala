@@ -111,7 +111,20 @@ object WikipediaPageRank {
   }
 }
 
-@serializable class PRVertex(var id: String, var value: Double, var outEdges: ArrayBuffer[PREdge], var state: VertexState) extends Vertex with Externalizable {
+@serializable class PRVertex() extends Vertex with Externalizable {
+  var id: String = _
+  var value: Double = _
+  var outEdges: ArrayBuffer[PREdge] = _
+  var state: VertexState = _
+
+  def this(id: String, value: Double, outEdges: ArrayBuffer[PREdge], state: VertexState) {
+    this()
+    this.id = id
+    this.value = value
+    this.outEdges = outEdges
+    this.state = state
+  }
+
   def writeExternal(out: ObjectOutput) {
     val idBytes = id.getBytes()
     out.writeInt(idBytes.length)
@@ -146,7 +159,16 @@ object WikipediaPageRank {
   }
 }
 
-@serializable class PRMessage(var targetId: String, var value: Double) extends Message with Externalizable {
+@serializable class PRMessage() extends Message with Externalizable {
+  var targetId: String = _
+  var value: Double = _
+
+  def this(targetId: String, value: Double) {
+    this()
+    this.targetId = targetId
+    this.value = value
+  }
+
   def writeExternal(out: ObjectOutput) {
     val idBytes = targetId.getBytes()
     out.writeInt(idBytes.length)
@@ -163,7 +185,14 @@ object WikipediaPageRank {
   }
 }
 
-@serializable class PREdge(var targetId: String) extends Edge with Externalizable {
+@serializable class PREdge() extends Edge with Externalizable {
+  var targetId: String = _
+
+  def this(targetId: String) {
+    this()
+    this.targetId = targetId
+   }
+
   def writeExternal(out: ObjectOutput) {
     val idBytes = targetId.getBytes()
     out.writeInt(idBytes.length)
