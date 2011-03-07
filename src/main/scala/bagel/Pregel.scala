@@ -21,7 +21,7 @@ object Pregel {
    * all vertices have voted to halt by setting their state to
    * Inactive.
    */
-  def run[V <: Vertex : Manifest, M <: Message : Manifest, C](vertices: RDD[V], messages: RDD[M], splits: Int, messageCombiner: (C, M) => C, defaultCombined: () => C, mergeCombined: (C, C) => C, superstep: Int = 0)(compute: (V, C, Int) => (V, Iterable[M])): RDD[V] = {
+  def run[V <: Vertex : Manifest, M <: Message : Manifest, C](sc: SparkContext, vertices: RDD[V], messages: RDD[M], splits: Int, messageCombiner: (C, M) => C, defaultCombined: () => C, mergeCombined: (C, C) => C, superstep: Int = 0)(compute: (V, C, Int) => (V, Iterable[M])): RDD[V] = {
     println("Starting superstep "+superstep+".")
     val startTime = System.currentTimeMillis
 
@@ -34,10 +34,16 @@ object Pregel {
 
     // Run compute on each vertex
     println("Running compute on each vertex...")
+    var messageCount = sc.accumulator(0)
+    var activeVertexCount = sc.accumulator(0)
     val processed = joined.flatMap {
       case (id, (None, ms)) => List()
       case (id, (Some(v), ms)) =>
-          List(compute(v, ms, superstep))
+          val (newVertex, newMessages) = compute(v, ms, superstep)
+          messageCount += newMessages.size
+          if (newVertex.state == Active)
+            activeVertexCount += 1
+          List((newVertex, newMessages))
     }.cache
     println("Done running compute on each vertex.")
 
@@ -47,14 +53,16 @@ object Pregel {
     val newMessages = processed.map(_._2).flatMap(identity)
     println("Done splitting vertices and messages.")
 
+    println("Checking stopping condition...")
+    val stop = messageCount.value == 0 && activeVertexCount.value == 0
+
     val timeTaken = System.currentTimeMillis - startTime
     println("Superstep %d took %d s".format(superstep, timeTaken / 1000))
 
-    println("Checking stopping condition...")
-    if (newMessages.count == 0 && newVertices.forall(_.state == Inactive))
+    if (stop)
       newVertices
     else
-      run(newVertices, newMessages, splits, messageCombiner, defaultCombined, mergeCombined, superstep + 1)(compute)
+      run(sc, newVertices, newMessages, splits, messageCombiner, defaultCombined, mergeCombined, superstep + 1)(compute)
   }
 }
 

@@ -52,7 +52,7 @@ object ShortestPath {
     def messageCombiner(minSoFar: Int, message: SPMessage): Int =
       min(minSoFar, message.value)
 
-    val result = Pregel.run(vertices, messages, numSplits, messageCombiner, () => Int.MaxValue, min _) {
+    val result = Pregel.run(sc, vertices, messages, numSplits, messageCombiner, () => Int.MaxValue, min _) {
       (self: SPVertex, messageMinValue: Int, superstep: Int) =>
         val newValue = min(self.value, messageMinValue)
 

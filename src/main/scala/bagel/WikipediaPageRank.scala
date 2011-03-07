@@ -56,9 +56,9 @@ object WikipediaPageRank {
     val epsilon = 0.01 / numVertices
     val result =
       if (noCombiner)
-        Pregel.run(vertices, sc.parallelize(List[PRMessage]()), numSplits, NoCombiner.messageCombiner, NoCombiner.defaultCombined, NoCombiner.mergeCombined)(NoCombiner.compute(numVertices, epsilon))
+        Pregel.run(sc, vertices, sc.parallelize(List[PRMessage]()), numSplits, NoCombiner.messageCombiner, NoCombiner.defaultCombined, NoCombiner.mergeCombined)(NoCombiner.compute(numVertices, epsilon))
       else
-        Pregel.run(vertices, sc.parallelize(List[PRMessage]()), numSplits, Combiner.messageCombiner, Combiner.defaultCombined, Combiner.mergeCombined)(Combiner.compute(numVertices, epsilon))
+        Pregel.run(sc, vertices, sc.parallelize(List[PRMessage]()), numSplits, Combiner.messageCombiner, Combiner.defaultCombined, Combiner.mergeCombined)(Combiner.compute(numVertices, epsilon))
 
     // Print the result
     System.err.println("Articles with PageRank >= "+threshold+":")
