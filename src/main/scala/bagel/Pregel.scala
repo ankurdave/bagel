@@ -52,10 +52,10 @@ object Pregel {
     val timeTaken = System.currentTimeMillis - startTime
     println("Superstep %d took %d s".format(superstep, timeTaken / 1000))
 
-    if (stop)
+    if (superstep >= 10)
       processed.flatMap { case (_, Left(v)) => List(v); case (_, Right(_)) => List() }
     else
-      run(sc, graph, splits, messageCombiner, defaultCombined, mergeCombined, superstep + 1)(compute)
+      run(sc, processed, splits, messageCombiner, defaultCombined, mergeCombined, superstep + 1)(compute)
   }
 }
 
