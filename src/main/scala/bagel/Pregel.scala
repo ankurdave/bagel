@@ -41,8 +41,8 @@ object Pregel {
           messageCount += newMessages.size
           if (newVertex.state == Active)
             activeVertexCount += 1
-          val result = ArrayBuffer[(String, Either[V, M])]((id, Left(newVertex)))
-          result ++= newMessages.map(m => (id, Right(m)))
+          val result = ArrayBuffer[(String, Either[V, M])]((newVertex.id, Left(newVertex)))
+          result ++= newMessages.map(m => (m.targetId, Right(m)))
     }.cache
     println("Done running compute on each vertex.")
 
