@@ -25,7 +25,7 @@ object ShortestPath {
        .filter(!_.matches("^\\s*#.*"))
        .map(line => line.split("\t")))
 
-    val vertices =
+    val vertices: RDD[(String, Either[SPVertex, SPMessage])] =
       (lines.groupBy(line => line(0))
        .map {
          case (vertexId, lines) => {
@@ -34,16 +34,18 @@ object ShortestPath {
                new SPEdge(targetId, edgeValue.toInt)
            }
            
-           new SPVertex(vertexId, Int.MaxValue, outEdges, Active)
+           (vertexId, Left[SPVertex, SPMessage](new SPVertex(vertexId, Int.MaxValue, outEdges, Active)))
          }
        })
 
-    val messages =
+    val messages: RDD[(String, Either[SPVertex, SPMessage])] =
       (lines.filter(_.length == 2)
        .map {
          case Array(vertexId, messageValue) =>
-           new SPMessage(vertexId, messageValue.toInt)
+           (vertexId, Right[SPVertex, SPMessage](new SPMessage(vertexId, messageValue.toInt)))
        })
+
+    val graph: RDD[(String, Either[SPVertex, SPMessage])] = vertices ++ messages
     
     System.err.println("Read "+vertices.count()+" vertices and "+
                        messages.count()+" messages.")
@@ -52,7 +54,7 @@ object ShortestPath {
     def messageCombiner(minSoFar: Int, message: SPMessage): Int =
       min(minSoFar, message.value)
 
-    val result = Pregel.run(sc, vertices, messages, numSplits, messageCombiner, () => Int.MaxValue, min _) {
+    val result = Pregel.run(sc, graph, numSplits, messageCombiner, () => Int.MaxValue, min _) {
       (self: SPVertex, messageMinValue: Int, superstep: Int) =>
         val newValue = min(self.value, messageMinValue)
 

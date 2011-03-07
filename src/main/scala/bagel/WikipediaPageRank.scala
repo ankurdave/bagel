@@ -31,7 +31,7 @@ object WikipediaPageRank {
     println("Done counting vertices.")
 
     println("Parsing input file...")
-    val vertices = input.map(line => {
+    val vertices: RDD[(String, Either[PRVertex, PRMessage])] = input.map(line => {
       val fields = line.split("\t")
       val (title, body) = (fields(1), fields(3).replace("\\n", "\n"))
       val links =
@@ -46,19 +46,21 @@ object WikipediaPageRank {
             NodeSeq.Empty
           }
       val outEdges = ArrayBuffer(links.map(link => new PREdge(new String(link.text))): _*)
-      new PRVertex(new String(title), 1.0 / numVertices, outEdges, Active)
-    }).cache
+      val id = new String(title)
+      (id, Left[PRVertex, PRMessage](new PRVertex(id, 1.0 / numVertices, outEdges, Active)))
+    })
+    val graph = vertices.cache
 
     println("Done parsing input file.")
-    println("Input file had "+vertices.count() + " vertices.")
+    println("Input file had "+graph.count()+" vertices.")
 
     // Do the computation
     val epsilon = 0.01 / numVertices
     val result =
       if (noCombiner)
-        Pregel.run(sc, vertices, sc.parallelize(List[PRMessage]()), numSplits, NoCombiner.messageCombiner, NoCombiner.defaultCombined, NoCombiner.mergeCombined)(NoCombiner.compute(numVertices, epsilon))
+        Pregel.run(sc, graph, numSplits, NoCombiner.messageCombiner, NoCombiner.defaultCombined, NoCombiner.mergeCombined)(NoCombiner.compute(numVertices, epsilon))
       else
-        Pregel.run(sc, vertices, sc.parallelize(List[PRMessage]()), numSplits, Combiner.messageCombiner, Combiner.defaultCombined, Combiner.mergeCombined)(Combiner.compute(numVertices, epsilon))
+        Pregel.run(sc, graph, numSplits, Combiner.messageCombiner, Combiner.defaultCombined, Combiner.mergeCombined)(Combiner.compute(numVertices, epsilon))
 
     // Print the result
     System.err.println("Articles with PageRank >= "+threshold+":")

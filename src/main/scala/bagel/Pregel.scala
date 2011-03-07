@@ -3,11 +3,11 @@ package bagel
 import spark._
 import spark.SparkContext._
 import scala.collection.mutable.HashMap
-import scala.collection.mutable.ListBuffer
+import scala.collection.mutable.ArrayBuffer
 
 object Pregel {
   implicit def RDDExtensions[T](self: RDD[T]) = new RDDExtensions(self)
-  implicit def PairRDDExtensions[K, V](self: RDD[(K, V)]) = new PairRDDExtensions(self)
+  implicit def PairRDDExtensions[K, V, W](self: RDD[(K, Either[V, W])]) = new PairRDDExtensions(self)
 
   /**
    * Runs a Pregel job on the given vertices, running the specified
@@ -21,15 +21,13 @@ object Pregel {
    * all vertices have voted to halt by setting their state to
    * Inactive.
    */
-  def run[V <: Vertex : Manifest, M <: Message : Manifest, C](sc: SparkContext, vertices: RDD[V], messages: RDD[M], splits: Int, messageCombiner: (C, M) => C, defaultCombined: () => C, mergeCombined: (C, C) => C, superstep: Int = 0)(compute: (V, C, Int) => (V, Iterable[M])): RDD[V] = {
+  def run[V <: Vertex : Manifest, M <: Message : Manifest, C](sc: SparkContext, graph: RDD[(String, Either[V, M])], splits: Int, messageCombiner: (C, M) => C, defaultCombined: () => C, mergeCombined: (C, C) => C, superstep: Int = 0)(compute: (V, C, Int) => (V, Iterable[M])): RDD[V] = {
     println("Starting superstep "+superstep+".")
     val startTime = System.currentTimeMillis
 
     // Bring together vertices and messages
     println("Joining vertices and messages...")
-    val verticesWithId = vertices.map(v => (v.id, v))
-    val messagesWithId = messages.map(m => (m.targetId, m))
-    val joined = verticesWithId.groupByKeyAsymmetrical(messagesWithId, messageCombiner, defaultCombined, mergeCombined, splits)
+    val joined = graph.groupByKeyAsymmetrical(messageCombiner, defaultCombined, mergeCombined, splits)
     println("Done joining vertices and messages.")
 
     // Run compute on each vertex
@@ -37,21 +35,16 @@ object Pregel {
     var messageCount = sc.accumulator(0)
     var activeVertexCount = sc.accumulator(0)
     val processed = joined.flatMap {
-      case (id, (None, ms)) => List()
+      case (id, (None, ms)) => ArrayBuffer[(String, Either[V, M])]()
       case (id, (Some(v), ms)) =>
           val (newVertex, newMessages) = compute(v, ms, superstep)
           messageCount += newMessages.size
           if (newVertex.state == Active)
             activeVertexCount += 1
-          List((newVertex, newMessages))
+          val result = ArrayBuffer[(String, Either[V, M])]((id, Left(newVertex)))
+          result ++= newMessages.map(m => (id, Right(m)))
     }.cache
     println("Done running compute on each vertex.")
-
-    // Separate vertices from the messages they emitted
-    println("Splitting vertices and messages...")
-    val newVertices = processed.map(_._1)
-    val newMessages = processed.map(_._2).flatMap(identity)
-    println("Done splitting vertices and messages.")
 
     println("Checking stopping condition...")
     val stop = messageCount.value == 0 && activeVertexCount.value == 0
@@ -60,9 +53,9 @@ object Pregel {
     println("Superstep %d took %d s".format(superstep, timeTaken / 1000))
 
     if (stop)
-      newVertices
+      processed.flatMap { case (_, Left(v)) => List(v); case (_, Right(_)) => List() }
     else
-      run(sc, newVertices, newMessages, splits, messageCombiner, defaultCombined, mergeCombined, superstep + 1)(compute)
+      run(sc, graph, splits, messageCombiner, defaultCombined, mergeCombined, superstep + 1)(compute)
   }
 }
 
