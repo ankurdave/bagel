@@ -9,12 +9,17 @@ import scala.xml.{XML,NodeSeq}
 
 import java.io.{Externalizable,ObjectInput,ObjectOutput,DataOutputStream,DataInputStream}
 
+import com.esotericsoftware.kryo._
+
 object WikipediaPageRank {
   def main(args: Array[String]) {
     if (args.length < 4) {
       System.err.println("Usage: PageRank <inputFile> <threshold> <numSplits> <host> [<noCombiner>]")
       System.exit(-1)
     }
+
+    System.setProperty("spark.serialization", "spark.KryoSerialization")
+    System.setProperty("spark.kryo.registrator", classOf[PRKryoRegistrator].getName)
 
     val inputFile = args(0)
     val threshold = args(1).toDouble
@@ -186,5 +191,13 @@ object WikipediaPageRank {
 
   def readExternal(in: ObjectInput) {
     targetId = in.readUTF()
+  }
+}
+
+class PRKryoRegistrator extends KryoRegistrator {
+  def registerClasses(kryo: Kryo) {
+    kryo.register(classOf[PRVertex])
+    kryo.register(classOf[PRMessage])
+    kryo.register(classOf[PREdge])
   }
 }
