@@ -52,7 +52,7 @@ object WikipediaPageRank {
           }
       val outEdges = ArrayBuffer(links.map(link => new PREdge(new String(link.text))): _*)
       val id = new String(title)
-      (id, Left[PRVertex, PRMessage](new PRVertex(id, 1.0 / numVertices, outEdges, Active)))
+      (id, Left[PRVertex, PRMessage](new PRVertex(id, 1.0 / numVertices, outEdges, true)))
     })
     val graph = vertices.cache
 
@@ -98,9 +98,7 @@ object WikipediaPageRank {
         else
           ArrayBuffer[PRMessage]()
 
-      val newState = if (!terminate) Active else Inactive
-
-      (new PRVertex(self.id, newValue, self.outEdges, newState), outbox)
+      (new PRVertex(self.id, newValue, self.outEdges, !terminate), outbox)
     }
   }
 
@@ -122,14 +120,14 @@ object WikipediaPageRank {
   var id: String = _
   var value: Double = _
   var outEdges: ArrayBuffer[PREdge] = _
-  var state: VertexState = _
+  var active: Boolean = true
 
-  def this(id: String, value: Double, outEdges: ArrayBuffer[PREdge], state: VertexState) {
+  def this(id: String, value: Double, outEdges: ArrayBuffer[PREdge], active: Boolean) {
     this()
     this.id = id
     this.value = value
     this.outEdges = outEdges
-    this.state = state
+    this.active = active
   }
 
   def writeExternal(out: ObjectOutput) {
@@ -138,10 +136,7 @@ object WikipediaPageRank {
     out.writeInt(outEdges.length)
     for (e <- outEdges)
       out.writeUTF(e.targetId)
-    out.writeBoolean(state match {
-      case Active => true
-      case Inactive => false
-    })
+    out.writeBoolean(active)
   }
 
   def readExternal(in: ObjectInput) {
@@ -152,7 +147,7 @@ object WikipediaPageRank {
     for (i <- 0 until numEdges) {
       outEdges += new PREdge(in.readUTF())
     }
-    state = if (in.readBoolean()) Active else Inactive
+    active = in.readBoolean()
   }
 }
 

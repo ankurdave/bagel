@@ -34,7 +34,7 @@ object ShortestPath {
                new SPEdge(targetId, edgeValue.toInt)
            }
            
-           (vertexId, Left[SPVertex, SPMessage](new SPVertex(vertexId, Int.MaxValue, outEdges, Active)))
+           (vertexId, Left[SPVertex, SPMessage](new SPVertex(vertexId, Int.MaxValue, outEdges, true)))
          }
        })
 
@@ -65,7 +65,7 @@ object ShortestPath {
           else
             List()
 
-        (new SPVertex(self.id, newValue, self.outEdges, Inactive), outbox)
+        (new SPVertex(self.id, newValue, self.outEdges, false), outbox)
     }
 
     // Print the result
@@ -79,6 +79,6 @@ object ShortestPath {
   }
 }
 
-@serializable class SPVertex(val id: String, val value: Int, val outEdges: Seq[SPEdge], val state: VertexState) extends Vertex
+@serializable class SPVertex(val id: String, val value: Int, val outEdges: Seq[SPEdge], val active: Boolean) extends Vertex
 @serializable class SPEdge(val targetId: String, val value: Int) extends Edge
 @serializable class SPMessage(val targetId: String, val value: Int) extends Message

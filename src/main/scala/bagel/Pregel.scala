@@ -39,7 +39,7 @@ object Pregel {
       case (id, (Some(v), ms)) =>
           val (newVertex, newMessages) = compute(v, ms, superstep)
           messageCount += newMessages.size
-          if (newVertex.state == Active)
+          if (newVertex.active)
             activeVertexCount += 1
           val result = ArrayBuffer[(String, Either[V, M])]((newVertex.id, Left(newVertex)))
           result ++= newMessages.map(m => (m.targetId, Right(m)))
@@ -65,7 +65,7 @@ object Pregel {
  */
 trait Vertex {
   def id: String
-  def state: VertexState
+  def active: Boolean
 }
 
 /**
@@ -84,13 +84,3 @@ trait Message {
 trait Edge {
   def targetId: String
 }
-
-/**
- * Case enumeration representing the state of a Pregel vertex. Active
- * vertices run their computation in every superstep. Inactive
- * vertices have voted to halt and do not run computation unless they
- * receive a message.
- */
-sealed abstract class VertexState
-case object Active extends VertexState
-case object Inactive extends VertexState
