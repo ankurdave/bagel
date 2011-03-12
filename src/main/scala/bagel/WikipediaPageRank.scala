@@ -36,7 +36,7 @@ object WikipediaPageRank {
     println("Done counting vertices.")
 
     println("Parsing input file...")
-    val vertices: RDD[(String, Either[PRVertex, PRMessage])] = input.map(line => {
+    val vertices: RDD[(String, PRVertex)] = input.map(line => {
       val fields = line.split("\t")
       val (title, body) = (fields(1), fields(3).replace("\\n", "\n"))
       val links =
@@ -52,20 +52,23 @@ object WikipediaPageRank {
           }
       val outEdges = ArrayBuffer(links.map(link => new PREdge(new String(link.text))): _*)
       val id = new String(title)
-      (id, Left[PRVertex, PRMessage](new PRVertex(id, 1.0 / numVertices, outEdges, true)))
+      (id, (new PRVertex(id, 1.0 / numVertices, outEdges, true)))
     })
-    val graph = vertices.cache
+    val graph = vertices.groupByKey(numSplits).mapValues(_.head).cache
 
     println("Done parsing input file.")
-    println("Input file had "+graph.count()+" vertices.")
+    println("Input file had "+graph.count+" vertices.")
 
     // Do the computation
     val epsilon = 0.01 / numVertices
     val result =
-      if (noCombiner)
-        Pregel.run(sc, graph, numSplits, NoCombiner.messageCombiner, NoCombiner.defaultCombined, NoCombiner.mergeCombined)(NoCombiner.compute(numVertices, epsilon))
-      else
-        Pregel.run(sc, graph, numSplits, Combiner.messageCombiner, Combiner.defaultCombined, Combiner.mergeCombined)(Combiner.compute(numVertices, epsilon))
+      if (noCombiner) {
+        val messages = sc.parallelize(List[(String, PRMessage)]())
+        Pregel.run[PRVertex, PRMessage, ArrayBuffer[PRMessage]](sc, graph, messages, numSplits, NoCombiner.messageCombiner, NoCombiner.defaultCombined, NoCombiner.mergeCombined)(NoCombiner.compute(numVertices, epsilon)) 
+      } else {
+        val messages = sc.parallelize(List[(String, PRMessage)]())
+        Pregel.run[PRVertex, PRMessage, Double](sc, graph, messages, numSplits, Combiner.messageCombiner, Combiner.defaultCombined, Combiner.mergeCombined)(Combiner.compute(numVertices, epsilon))
+      }
 
     // Print the result
     System.err.println("Articles with PageRank >= "+threshold+":")

@@ -47,4 +47,5 @@ else
   SCALA=scala
 fi
 
+export SPARK_CLASSPATH=`pwd`/target/scala_2.8.1/bagel_2.8.1-1.0.jar
 exec $SCALA -cp $CLASSPATH $@

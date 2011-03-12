@@ -5,6 +5,7 @@ import spark.SparkContext._
 
 import scala.math.min
 
+/*
 object ShortestPath {
   def main(args: Array[String]) {
     if (args.length < 4) {
@@ -82,3 +83,4 @@ object ShortestPath {
 @serializable class SPVertex(val id: String, val value: Int, val outEdges: Seq[SPEdge], val active: Boolean) extends Vertex
 @serializable class SPEdge(val targetId: String, val value: Int) extends Edge
 @serializable class SPMessage(val targetId: String, val value: Int) extends Message
+*/

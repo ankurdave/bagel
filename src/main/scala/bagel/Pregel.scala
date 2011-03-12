@@ -21,29 +21,46 @@ object Pregel {
    * all vertices have voted to halt by setting their state to
    * Inactive.
    */
-  def run[V <: Vertex : Manifest, M <: Message : Manifest, C](sc: SparkContext, graph: RDD[(String, Either[V, M])], splits: Int, messageCombiner: (C, M) => C, defaultCombined: () => C, mergeCombined: (C, C) => C, superstep: Int = 0)(compute: (V, C, Int) => (V, Iterable[M])): RDD[V] = {
+  def run[V <: Vertex : Manifest, M <: Message : Manifest, C](sc: SparkContext, verts: RDD[(String, V)], msgs: RDD[(String, M)], splits: Int, messageCombiner: (C, M) => C, defaultCombined: () => C, mergeCombined: (C, C) => C, superstep: Int = 0)(compute: (V, C, Int) => (V, Iterable[M])): RDD[V] = {
     println("Starting superstep "+superstep+".")
     val startTime = System.currentTimeMillis
 
     // Bring together vertices and messages
     println("Joining vertices and messages...")
-    val joined = graph.groupByKeyAsymmetrical(messageCombiner, defaultCombined, mergeCombined, splits)
+    val combinedMsgs = msgs.combineByKey({x => messageCombiner(defaultCombined(), x)}, messageCombiner, mergeCombined, splits)
+    println("verts.splits.size = " + verts.splits.size)
+    println("combinedMsgs.splits.size = " + combinedMsgs.splits.size)
+    println("verts.partitioner = " + verts.partitioner)
+    println("combinedMsgs.partitioner = " + combinedMsgs.partitioner)
+    val joined = verts.groupWith(combinedMsgs)
+    println("joined.splits.size = " + joined.splits.size)
+    println("joined.partitioner = " + joined.partitioner)
+    //val joined = graph.groupByKeyAsymmetrical(messageCombiner, defaultCombined, mergeCombined, splits)
     println("Done joining vertices and messages.")
 
     // Run compute on each vertex
     println("Running compute on each vertex...")
     var messageCount = sc.accumulator(0)
     var activeVertexCount = sc.accumulator(0)
-    val processed = joined.flatMap {
-      case (id, (None, ms)) => ArrayBuffer[(String, Either[V, M])]()
-      case (id, (Some(v), ms)) =>
-          val (newVertex, newMessages) = compute(v, ms, superstep)
+    val processed = joined.flatMapValues {
+      case (Seq(), _) => None
+      case (Seq(v), Seq(comb)) =>
+          val (newVertex, newMessages) = compute(v, comb, superstep)
           messageCount += newMessages.size
           if (newVertex.active)
             activeVertexCount += 1
-          val result = ArrayBuffer[(String, Either[V, M])]((newVertex.id, Left(newVertex)))
-          result ++= newMessages.map(m => (m.targetId, Right(m)))
+          Some((newVertex, newMessages))
+          //val result = ArrayBuffer[(String, Either[V, M])]((newVertex.id, Left(newVertex)))
+          //result ++= newMessages.map(m => (m.targetId, Right(m)))
+      case (Seq(v), Seq()) =>
+          val (newVertex, newMessages) = compute(v, defaultCombined(), superstep)
+          messageCount += newMessages.size
+          if (newVertex.active)
+            activeVertexCount += 1
+          Some((newVertex, newMessages))
     }.cache
+    //MATEI: Added this
+    processed.foreach(x => {})
     println("Done running compute on each vertex.")
 
     println("Checking stopping condition...")
@@ -52,10 +69,13 @@ object Pregel {
     val timeTaken = System.currentTimeMillis - startTime
     println("Superstep %d took %d s".format(superstep, timeTaken / 1000))
 
+    val newVerts = processed.mapValues(_._1)
+    val newMsgs = processed.flatMap(x => x._2._2.map(m => (m.targetId, m)))
+
     if (superstep >= 10)
-      processed.flatMap { case (_, Left(v)) => List(v); case (_, Right(_)) => List() }
+      processed.map { _._2._1 }
     else
-      run(sc, processed, splits, messageCombiner, defaultCombined, mergeCombined, superstep + 1)(compute)
+      run(sc, newVerts, newMsgs, splits, messageCombiner, defaultCombined, mergeCombined, superstep + 1)(compute)
   }
 }
 
